@@ -2,11 +2,7 @@ import logging
 import os
 import pymongo
 from bson.objectid import ObjectId
-from envparse import env
 from managers.simple_logger import logger
-
-
-env.read_envfile()
 
 
 logging.getLogger('pymongo').setLevel(logging.INFO)
@@ -20,7 +16,7 @@ try:
     from django.conf import settings
     hasattr(settings, 'DEBUG')
 except Exception as e:
-    logger.info('Exception from django.conf import settings: %s' % e)
+    #logger.info('Exception from django.conf import settings: %s' % e)
     settings = MockSettings()
 
 
@@ -107,26 +103,37 @@ class MongoManager:
         """
         return len(list(cursor.clone()))
 
-    def documents_count(self, query: dict, limit: int = 1000000, hint: str = None) -> dict:
+    def documents_count(self,
+                        query: dict,
+                        limit: int = 1000000,
+                        projection: str = None,
+                        sort: str = None,
+                        hint: str = None) -> dict:
         """Получить количество записей по запросу
            skip слишком долго работает, поэтому проще
            запрашивать идентификаторы в цикле и считать их
            :param query: запрос (например, {} для всех документов)
            :param limit: ограничение по кол-ву
            :param hint: подсказка для поиска по индексу
+           :param projection: извлекаемые поля
+           :param sort: сортировка
            :return: словарь с количеством и аккумуляцией срезов айди
         """
         accum = [] # накопительный результат для нарезки на массивы айдишников
         count = 0
         lastpk = None
+        if not sort:
+            sort = {'_id': 1}
+        if not projection:
+            projection = {'_id': 1}
         while True:
             new_query = {k: v for k, v in query.items()}
             if lastpk:
                 query['_id'] = {'$gt': lastpk}
             docs = self.find(
                 cond = query,
-                projection = {'_id': 1},
-                sort = {'_id': 1},
+                projection = projection,
+                sort = sort,
                 limit = limit,
                 hint = hint,
             )
@@ -139,7 +146,7 @@ class MongoManager:
             if prevpk and lastpk:
                 accum.append({'from': prevpk, 'to': lastpk})
             logger.info('query: %s, lastpk: %s, count: %s' % (query, lastpk, count))
-        logger.info(accum)
+        #logger.info(accum)
         return {
             'count': count,
             'accum': accum,
@@ -224,3 +231,9 @@ class MongoManager:
         return self.collection.update_one({
           '_id': ObjectId(obj_id),
         }, {'$unset': {field: 1 for field in fields}})
+
+    def delete_one(self, obj_id: str):
+        """Удаление записи
+           :param obj_id: ид объекта
+        """
+        return self.collection.delete_one({'_id': ObjectId(obj_id)})
