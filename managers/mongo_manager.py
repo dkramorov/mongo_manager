@@ -97,11 +97,10 @@ class MongoManager:
         """Найти все записи"""
         return self.collection.find({})
 
-    def count_documents(self, query: dict = None):
+    def total_documents(self):
         """Количество документов по запросу
-           :param query: запрос
         """
-        return self.collection.estimated_document_count(query=query or {})
+        return self.collection.estimated_document_count()
 
     def count(self, cursor):
         """Получаем кол-во записей по запросу/курсору
